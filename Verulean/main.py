@@ -1,9 +1,10 @@
 from datetime import datetime as dt
 from importlib import import_module
 import aoc_util
+from pprint import pprint
 
 
-def main(n=dt.today().day, time=False, n_trials=1000, print_solution=True, file_variant=''):
+def main(n=min(dt.today().day, 25), time=False, n_trials=1000, print_solution=True, file_variant=''):
     aoc = import_module(f"days.aoc{n:02}{file_variant}")
     fmt = getattr(aoc, 'fmt_dict', {})
     data = aoc_util.aoc_input(f"{n:02}.txt", **fmt)
@@ -19,7 +20,7 @@ def main(n=dt.today().day, time=False, n_trials=1000, print_solution=True, file_
     
     solution = aoc.solve(data)
     if print_solution:
-        print(solution, sep='\n')
+        pprint(solution)
     
     return solution
 
