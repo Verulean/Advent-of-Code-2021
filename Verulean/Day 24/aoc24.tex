@@ -162,7 +162,7 @@ In particular, this ``cancelling out" is accomplished by the \codeth[\aoc]{div z
 
 \pagebreak
 \subsection{Constraint Generation}
-As mentioned, it is extremely helpful to think of \z{} as a base-26 number. In this context, every Type 1 block left-shifts \z{}, then adds \codeth[\aoc]{w + C} as the new least-significant digit. Type 2 blocks (assuming \codet{(z \% 26 + B) == w}) then right-shift \z{}, cancelling out the growth from a Type 1 block. More aptly, \z{} can be thought of as a base-26 stack, with Type 1 blocks pushing a base-26 digit onto the stack (as the least-significant digit), and Type 2 blocks (assuming the equality condition holds) pop the least-significant digit off of the stack.
+As mentioned, it is extremely helpful to think of \z{} as a base-26 number. In this context, every Type 1 block left-shifts \z{}, then adds \codeth[\aoc]{w + C} as the new least-significant digit. Type 2 blocks (assuming \codet{(z \% 26 + B) == w}) then right-shift \z{}, cancelling out the growth from a Type 1 block. More aptly, \z{} can be thought of as a base-26 stack, with Type 1 blocks pushing a base-26 digit onto the stack (as the least-significant digit), and Type 2 blocks (assuming the equality condition holds) popping the least-significant digit off of the stack.
 
 What follows is a demonstration of stepping through the blocks from my puzzle input to obtain the constraints on each digit of the model number. The base-26 representation of \z{} will be given as a list of integers between 0 and 25, each corresponding to a single digit of \z. The fourteen digits of the model number are notated as $d_1$ through $d_{14}$.
 
@@ -188,7 +188,7 @@ z = [d1+6, d2+2]
 \item{\codet{Type 1, B=10, C=13}}
 \begin{snippet}[py]
 z <<= 1
-z += d3+13
+z += w+13
 z = [d1+6, d2+2, d3+13]
 \end{snippet}
 
