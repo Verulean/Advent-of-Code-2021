@@ -1,0 +1,354 @@
+\documentclass{article}
+\usepackage{vutil}
+
+
+\def\aoc{aoc24_lexer.py:AdventOfCode24Lexer -x}
+\def\a{\codeth{a}}
+\def\b{\codeth{b}}
+\def\w{\codeth{w}}
+\def\x{\codeth{x}}
+\def\y{\codeth{y}}
+\def\z{\codeth{z}}
+
+
+\begin{document}
+\hdr{Verulean}{}
+\vtitle{Advent of Code 2021, Day 24}
+
+\section{Problem Statement}
+The Arithmetic Logic Unit (ALU) has four integer registers \w, \x, \y, and \z. At the start of the program, all registers have the value \codet{0}. The ALU supports six instructions:
+\begin{enumerate}
+\item{\codeth[\aoc]{inp a} -- Read an input value and write it to \a}
+\item{\codeth[\aoc]{mul a b} -- Multiply the value of \a{} by \b, then store the result in \a}
+\item{\codeth[\aoc]{div a b} -- Divide the value of \a{} by \b, truncate the result to an integer (round towards 0), then store the result in \a}
+\item{\codeth[\aoc]{mod a b} -- Divide the values of \a{} by the value of \b, then store the remainder in \a}
+\item{\codeth[\aoc]{eql a b} -- If the value of \a{} and \b{} are equal, store \codeth[\aoc]{1} in \a. Otherwise, store \codeth[\aoc]{0} in \a}
+\end{enumerate}
+
+In each instruction, \a{} will always be one of the four registers, and \b{} can either be another register or an integer literal.
+
+You are given an ALU program that has fourteen \codeth[\aoc]{inp} instructions corresponding to the digits of a \textit{model number}. If the model number is valid, the program will exit with \codeth[\aoc]{z=0}. Any other value in \z{} indicates an invalid number.
+
+In the two parts of the puzzle, you must find the largest and smallest model numbers that are valid and do not contain any \codeth[\aoc]{0} digits.
+
+\pagebreak
+\section{Walkthrough}
+\subsection{Basic Analysis}
+
+To begin, notice that the input program is composed of 252 lines, which can be divided into 14 discrete ``blocks" of 18 lines each. Every block begins with an \codeth[\aoc]{inp} instruction to process the next digit of the model number, and is always structured as follows:
+
+\begin{snippet}[\aoc]
+inp w
+mul x 0
+add x z
+mod x 26
+div z A
+add x B
+eql x w
+eql x 0
+mul y 0
+add y 25
+mul y x
+add y 1
+mul z y
+mul y 0
+add y w
+add y C
+mul y x
+add z y
+\end{snippet}
+
+where \codeth[\aoc]{A}, \codeth[\aoc]{B}, and \codeth[\aoc]{C} are integer literals. Here are their values for each block (from my puzzle input):
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{|c|c|c|c|}
+\hline
+\textbf{Block}&\textbf{A}&\textbf{B}&\textbf{C}\\\hline
+1&1&12&6\\\hline
+2&1&10&2\\\hline
+3&1&10&13\\\hline
+4&26&-6&8\\\hline
+5&1&11&13\\\hline
+6&26&-12&8\\\hline
+7&1&11&3\\\hline
+8&1&12&11\\\hline
+9&1&12&10\\\hline
+10&26&-2&8\\\hline
+11&26&-5&14\\\hline
+12&26&-4&6\\\hline
+13&26&-4&8\\\hline
+14&26&-12&2\\\hline
+\end{tabular}
+\end{table}
+
+\pagebreak
+Notice that \codeth[\aoc]{A} is always either \codeth[\aoc]{1} or \codeth[\aoc]{26}, and assumes no other values. Consider the pseudocode equivalent of a block.
+
+\begin{snippet}[py]
+w = input()
+x *= 0        # x = 0
+x += z        # x = z
+x %= 26       # x = z % 26
+z //= A
+x += B        # x = z % 26 + B
+x = (x == w)  # x = (z % 26 + B) == w
+x = (x == 0)  # x = (z % 26 + B) != w
+y *= 0        # y = 0
+y += 25       # y = 25
+y *= x        # y = 25 * x
+y += 1        # y = 25 * x + 1
+z *= y
+y *= 0        # y = 0
+y += w        # y = w
+y += C        # y = w + C
+y *= x        # y = (w + C) * x
+z += y
+\end{snippet}
+
+The comments illustrate how this can be simplified to the following:
+
+\begin{snippet}[py]
+w = input()
+x = (z % 26 + B) != w
+y = 25 * x + 1
+z //= A
+z *= y
+y = (w + C) * x
+z += y
+\end{snippet}
+
+\pagebreak
+\subsection{Additional Analysis}
+
+The simplified block from above can be rewritten as
+
+\begin{snippet}[py]
+w = input()
+mult = 1 if ((z % 26 + B) == w) else 26
+incr = 0 if ((z % 26 + B) == w) else w + C
+z //= A  # A == 1 | A == 26
+z *= mult
+z += incr
+\end{snippet}
+
+Consider the value of \codet{incr}. First, \w{}, being a digit of the model number, must satisfy \codeth[\aoc]{1<=w<=9}. Additionally from observation of the puzzle input, \codeth[\aoc]{C} is always positive. Thus, on line 6, \z{} is either left unchanged or incremented by a positive integer. Since the only other assignments to \z{} are \codeth[\aoc]{mul} and \codeth[\aoc]{div} instructions with \codeth[\aoc]1 or \codeth[\aoc]{26}, then \z{} must necessarily be \textbf{non-negative} throughout the entire program's execution.
+
+To gain further insight into the structure of this problem, let us now consider the blocks with \codeth[\aoc]{A == 1} (Type 1) and \codeth[\aoc]{A == 26} (Type 2) separately.
+
+\subsubsection{Type 1 Blocks}
+
+By observing the puzzle input, we have that \codeth[\aoc]{B > 9} for every Type 1 block. The consequences of this condition can be seen by examining the simplified pseudocode above -- specifically, the condition
+\begin{snippet}[py]
+(z % 26 + B) == w
+\end{snippet}
+
+Since we know that \z{} is guaranteed to be non-negative, \codet{z \% 26} must also be non-negative. Therefore for all Type 1 blocks, \codet{(z \% 26) + B > 0 + 9 = 9}. Since \w{} is a digit between 1 and 9, then the condition must \textit{always} be false, and thus Type 1 blocks can be further simplified to
+
+\begin{snippet}[py]
+w = input()
+# z //= 1
+z *= 26
+z += w + C
+\end{snippet}
+
+We can now see that \textit{every} Type 1 block will increase the value of \z{}. In particular, \z{} is first multiplied by 26, then incremented by a positive integer. Specifically, since \codeth[\aoc]{1<=w<=9} and (from observation of the input) \codeth[\aoc]{0<=C<=16}, the increment lies between 1 and 25, inclusive. As a consequence, it will be helpful to conceptualize these operations in base 26. In this context, each Type 1 block shifts the base-26 digits of \z{} left once, then adds a non-zero base-26 digit.
+
+\subsubsection{Type 2 Blocks}
+
+Unfortunately, not much simplification can be done in this case. However, note that there is an \textit{equal number} of Type 1 and Type 2 blocks in the program. Because every Type 1 block left-shifts and increments \z{}, the only possible way for \z{} to be \codeth[\aoc]0 when the program terminates is for this enlarging effect to be ``cancelled out" by a corresponding Type 2 block.
+
+In particular, this ``cancelling out" is accomplished by the \codeth[\aoc]{div z 26} instruction present in each Type 2 block, which effectively right-shifts the base-26 representation of \z{} by one digit. Critically, however, if \codet{(z \% 26 + B) != w}, then \z{} is subsequently \textit{multiplied} by 26 again, nullifying the cancellation. Thus \codet{z \% 26 + B} must equal \codet{w} for \textbf{every single} Type 2 block for the model number to be valid.
+
+\pagebreak
+\subsection{Constraint Generation}
+As mentioned, it is extremely helpful to think of \z{} as a base-26 number. In this context, every Type 1 block left-shifts \z{}, then adds \codeth[\aoc]{w + C} as the new least-significant digit. Type 2 blocks (assuming \codet{(z \% 26 + B) == w}) then right-shift \z{}, cancelling out the growth from a Type 1 block. More aptly, \z{} can be thought of as a base-26 stack, with Type 1 blocks pushing a base-26 digit onto the stack (as the least-significant digit), and Type 2 blocks (assuming the equality condition holds) pop the least-significant digit off of the stack.
+
+What follows is a demonstration of stepping through the blocks from my puzzle input to obtain the constraints on each digit of the model number. The base-26 representation of \z{} will be given as a list of integers between 0 and 25, each corresponding to a single digit of \z. The fourteen digits of the model number are notated as $d_1$ through $d_{14}$.
+
+\begin{enumerate}
+\begin{snippet}[py]
+z = 0
+\end{snippet}
+
+\item{\codet{Type 1, B=12, C=6}}
+\begin{snippet}[py]
+z <<= 1
+z += w+6
+z = [d1+6]
+\end{snippet}
+
+\item{\codet{Type 1, B=10, C=2}}
+\begin{snippet}[py]
+z <<= 1
+z += w+2
+z = [d1+6, d2+2]
+\end{snippet}
+
+\item{\codet{Type 1, B=10, C=13}}
+\begin{snippet}[py]
+z <<= 1
+z += d3+13
+z = [d1+6, d2+2, d3+13]
+\end{snippet}
+
+\item{\codet{Type 2, B=-6, C=8}}
+
+Condition: \codet{(z \% 26 - 6) == w}
+\begin{align*}
+(d_3 + 13) - 6 &= d_4 \\
+d_3 + 7 &= d_4
+\end{align*}
+\begin{snippet}[py]
+z >>= 1
+z = [d1+6, d2+2]
+\end{snippet}
+
+\item{\codet{Type 1, B=11, C=13}}
+\begin{snippet}[py]
+z <<= 1
+z += w+13
+z = [d1+6, d2+2, d5+13]
+\end{snippet}
+
+\item{\codet{Type 2, B=-12, C=8}}
+
+Condition: \codet{(z \% 26 - 12) == w}
+\begin{align*}
+(d_5 + 13) - 12 = d_6 \\
+d_5 + 1 = d_6
+\end{align*}
+\begin{snippet}[py]
+z >>= 1
+z = [d1+6, d2+2]
+\end{snippet}
+
+\item{\codet{Type 1, B=11, C=3}}
+\begin{snippet}[py]
+z <<= 1
+z += w+3
+z = [d1+6, d2+2, d7+3]
+\end{snippet}
+
+\item{\codet{Type 1, B=12, C=11}}
+\begin{snippet}[py]
+z <<= 1
+z += w+11
+z = [d1+6, d2+2, d7+3, d8+11]
+\end{snippet}
+
+\item{\codet{Type 1, B=12, C=10}}
+\begin{snippet}[py]
+z <<= 1
+z += w+10
+z = [d1+6, d2+2, d7+3, d8+11, d9+10]
+\end{snippet}
+
+\item{\codet{Type 2, B=-2, C=8}}
+
+Condition: \codet{(z \% 26 - 2) == w}
+\begin{align*}
+(d_9 + 10) - 2 = d_{10} \\
+d_9 + 8 = d_{10}
+\end{align*}
+\begin{snippet}[py]
+z >>= 1
+z = [d1+6, d2+2, d7+3, d8+11]
+\end{snippet}
+
+\item{\codet{Type 2, B=-5, C=14}}
+
+Condition: \codet{(z \% 26 - 5) == w}
+\begin{align*}
+(d_8 + 11) - 5 = d_{11} \\
+d_8 + 6 = d_{11}
+\end{align*}
+
+\item{\codet{Type 2, B=-4, C=6}}
+\begin{snippet}[py]
+z >>= 1
+z = [d1+6, d2+2, d7+3]
+\end{snippet}
+
+Condition: \codet{(z \% 26 - 4) == w}
+\begin{align*}
+(d_7 + 3) - 4 = d_{12} \\
+d_7 - 1 = d_{12}
+\end{align*}
+
+\item{\codet{Type 2, B=-4, C=8}}
+\begin{snippet}[py]
+z >>= 1
+z = [d1+6, d2+2]
+\end{snippet}
+
+Condition: \codet{(z \% 26 - 4) == w}
+\begin{align*}
+(d_2 + 2) - 4 = d_{13} \\
+d_2 - 2 = d_{13}
+\end{align*}
+\begin{snippet}[py]
+z >>= 1
+z = [d1+6]
+\end{snippet}
+
+\item{\codet{Type 2, B=-12, C=2}}
+
+Condition: \codet{(z \% 26 - 12) == w}
+\begin{align*}
+(d_1 + 6) - 12 = d_{14} \\
+d_1 - 6 = d_{14}
+\end{align*}
+\begin{snippet}[py]
+z >>= 1
+z = 0
+\end{snippet}
+\end{enumerate}
+
+\pagebreak
+\subsection{Sample Solution}
+The seven digit constraints (sorted from the most to least significant digit) are:
+\begin{align}
+d_1 - 6 &= d_{14} \\
+d_2 - 2 &= d_{13} \\
+d_7 - 1 &= d_{12} \\
+d_8 + 6 &= d_{11} \\
+d_9 + 8 &= d_{10} \\
+d_5 + 1 &= d_6 \\
+d_3 + 7 &= d_4
+\end{align}
+
+Since model numbers are in base-10 and any valid number does not contain any zero digits, all digits must also satisfy $1\leq d\leq9$. Recall that the problem asks for the largest and smallest valid model numbers. This can be done by going through the constraint list and choosing the largest/smallest value for the left-hand (most significant) digit in the given constraint equation, which also fully determines the value of the right-hand digit.
+
+\subsubsection{Largest Valid Model Number}
+Choose the largest possible value for the left-hand digit.
+\begin{enumerate}
+\item{$d_1-6=d_{14}\longrightarrow\ans d_1=9, d_{14}=3$}
+\item{$d_2-2=d_{13}\longrightarrow\ans d_2=9, d_{13}=7$}
+\item{$d_7-1=d_{12}\longrightarrow\ans d_7=9, d_{12}=8$}
+\item{$d_8+6=d_{11}\longrightarrow\ans d_8=3, d_{11}=9$}
+\item{$d_9+8=d_{10}\longrightarrow\ans d_9=1, d_{10}=9$}
+\item{$d_5+1=d_6\longrightarrow\ans d_5=8, d_6=9$}
+\item{$d_3+7=d_4\longrightarrow\ans d_3=2, d_4=9$}
+\end{enumerate}
+\begin{align*}
+\Aboxed{\ans99298993199873}
+\end{align*}
+
+\subsubsection{Smallest Valid Model Number}
+Choose the smallest possible value for the left-hand digit.
+\begin{enumerate}
+\item{$d_1-6=d_{14}\longrightarrow\ans d_1=7, d_{14}=1$}
+\item{$d_2-2=d_{13}\longrightarrow\ans d_2=3, d_{13}=1$}
+\item{$d_7-1=d_{12}\longrightarrow\ans d_7=2, d_{12}=1$}
+\item{$d_8+6=d_{11}\longrightarrow\ans d_8=1, d_{11}=7$}
+\item{$d_9+8=d_{10}\longrightarrow\ans d_9=1, d_{10}=9$}
+\item{$d_5+1=d_6\longrightarrow\ans d_5=1, d_6=2$}
+\item{$d_3+7=d_4\longrightarrow\ans d_3=1, d_4=8$}
+\end{enumerate}
+\begin{align*}
+\Aboxed{\ans73181221197111}
+\end{align*}
+
+
+\end{document}
